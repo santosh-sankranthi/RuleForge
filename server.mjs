@@ -17,7 +17,7 @@ import { execFileSync } from "node:child_process";
 import {
   ROOT, FEELC, MODEL, MAX_TOKENS, CHAT_TIMEOUT_MS, loadApiKey, loadLlmConfig, chat, extractRules, verify,
   parseDecisions, parseInputs, parseModelManifest, runDecision, exportDmn,
-  CreditError, TruncationError, LlmError, isNetworkError,
+  CreditError, TruncationError, AuthError, LlmError, isNetworkError,
 } from "./copilot-lib.mjs";
 
 const PORT = Number(process.env.PORT || 3088);
@@ -289,7 +289,18 @@ const server = http.createServer(async (req, res) => {
             messages.push({ role: "assistant", content: draft }, { role: "user", content: repairTurn(issues) });
           } catch (e) {
             if (e instanceof CreditError) throw e;   // never burn repair rounds on an empty wallet
+            if (e instanceof AuthError) {
+              console.error(`\n❌ [Auth/Endpoint Error] ${e.message}\n`);
+              sendJson(res, {
+                ok: false,
+                error: e.message,
+                round,
+                history: [...history, { round, outcome: "auth_error", error: e.message, elapsedMs: Math.round(performance.now() - t0) }],
+              }, 401);
+              return;
+            }
             if (e instanceof TruncationError) {
+              console.warn(`⚠️ [Round ${round}] Output truncated at token ceiling`);
               history.push({ round, outcome: "truncated", elapsedMs: Math.round(performance.now() - t0) });
               messages.push(
                 { role: "assistant", content: "(previous reply omitted — it was cut off at the token ceiling)" },
@@ -297,10 +308,12 @@ const server = http.createServer(async (req, res) => {
               );
             } else if (isNetworkError(e)) {
               // Transport-level failure mid-round: conversation state is unchanged, so simply retry this round.
+              console.warn(`⚠️ [Round ${round}] Network error: ${e.message}`);
               history.push({ round, outcome: "network_retry", error: String(e.message || e).slice(0, 160), elapsedMs: Math.round(performance.now() - t0) });
               round--; // retry same round without advancing conversation state
             } else if (e instanceof LlmError) {
-              history.push({ round, outcome: "invalid_output", elapsedMs: Math.round(performance.now() - t0) });
+              console.warn(`⚠️ [Round ${round}] LLM response invalid: ${e.message}`);
+              history.push({ round, outcome: "invalid_output", error: e.message.slice(0, 250), elapsedMs: Math.round(performance.now() - t0) });
               messages.push({ role: "user", content: "That was not a valid .rules model. Return ONLY the full .rules file content in one fenced block." });
             } else {
               throw e;

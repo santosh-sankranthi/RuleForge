@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "node server.mjs",
+    "check": "node check-connection.mjs",
     "compile": "node copilot.mjs",
     "test": "node --test tests/unit.test.mjs",
     "test:api": "node --test tests/api.test.mjs",

@@ -62,6 +62,7 @@ export const CHAT_RETRIES = () => Number(process.env.CHAT_RETRIES ?? 4);
 export class LlmError extends Error {}
 export class CreditError extends LlmError {}
 export class TruncationError extends LlmError {}
+export class AuthError extends LlmError {}
 
 /* ---------------- Provider & credentials resolution ---------------- */
 
@@ -294,6 +295,14 @@ export async function chat(messages, { temperature = 0.2, apiKey, model, endpoin
       const { status, text } = await send(payload);
       const body = safeParse(text);
       if (status === 402) throw new CreditError("API credits exhausted. Please verify billing in your provider portal.");
+      if (status === 401 || status === 403) {
+        const msg = body.error?.message || body.message || text || "Access Denied";
+        throw new AuthError(`Authentication failed (HTTP ${status}): ${msg}. Please check your AZURE_AI_API_KEY.`);
+      }
+      if (status === 404) {
+        const msg = body.error?.message || body.message || text || "Resource or Deployment Not Found";
+        throw new AuthError(`Deployment or endpoint not found (HTTP 404): ${msg}. Check AZURE_AI_ENDPOINT and AZURE_AI_MODEL.`);
+      }
       const choice = body.choices?.[0];
       const content = choice?.message?.content;
       if (choice?.finish_reason === "length") throw new TruncationError(`output truncated at ${ceiling} tokens — raise QUERY_MAX_TOKENS`);
@@ -308,12 +317,13 @@ export async function chat(messages, { temperature = 0.2, apiKey, model, endpoin
         if ([408, 409, 429].includes(status) || status >= 500) {
           throw new LlmError(`transient HTTP ${status}: ${JSON.stringify(body.error || {}).slice(0, 200)}`);
         }
-        throw new LlmError(`LLM error: ${JSON.stringify(body.error || body).slice(0, 300)}`);
+        const errMsg = body.error?.message || (typeof body.error === "string" ? body.error : JSON.stringify(body.error || body));
+        throw new LlmError(`LLM returned HTTP ${status}: ${errMsg.slice(0, 400)}`);
       }
       return content;
     } catch (e) {
       lastErr = e;
-      if (e instanceof CreditError || e instanceof TruncationError) throw e;
+      if (e instanceof CreditError || e instanceof TruncationError || e instanceof AuthError) throw e;
       if (!isTransient(e) || attempt === retries) break;
       await sleep(backoffBaseMs * 2 ** attempt + Math.floor(Math.random() * Math.max(1, backoffBaseMs / 4)));
     }
