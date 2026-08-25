@@ -1,0 +1,38 @@
+[
+  {
+    "name": "Sunny Day Normal Commute",
+    "input": {
+      "base_fare": 3.5,
+      "distance_km": 8.0,
+      "rain": false,
+      "traffic_level": "low"
+    }
+  },
+  {
+    "name": "Rainy Moderate Traffic",
+    "input": {
+      "base_fare": 5.0,
+      "distance_km": 12.0,
+      "rain": true,
+      "traffic_level": "medium"
+    }
+  },
+  {
+    "name": "Friday Evening Rush Hour (High traffic, No rain)",
+    "input": {
+      "base_fare": 4.0,
+      "distance_km": 15.0,
+      "rain": false,
+      "traffic_level": "high"
+    }
+  },
+  {
+    "name": "Severe Thunderstorm in Downtown (High traffic + Rain)",
+    "input": {
+      "base_fare": 5.0,
+      "distance_km": 10.0,
+      "rain": true,
+      "traffic_level": "high"
+    }
+  }
+]

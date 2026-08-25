@@ -1,0 +1,12 @@
+Customer discount policy:
+
+Inputs: customer tier as text ("gold", "silver", "bronze"), purchase amount in euros.
+
+Rules:
+- Gold customers always get at least 15 percent discount.
+- Silver customers get 10 percent discount.
+- Bronze customers get 0 percent discount.
+- On top of the tier discount, if the purchase amount exceeds 500 euros add another 5 percentage points.
+- Cap the final discount at 25 percentage points.
+
+Output: discount_percent (number).

@@ -1,0 +1,10 @@
+Loan approval decision rules:
+
+- Reject any applicant younger than 18 as a minor.
+- Reject any applicant whose credit score is below 580 due to insufficient score.
+- If the applicant's total monthly debt payments are more than 43% of their gross monthly income, reject for debt too high. If income is zero but they have debt, treat that as 100% ratio.
+- Applicants with a credit score from 580 up to but not including 680, who pass the debt check and age check, are approved with conditions.
+- Applicants with a credit score of 680 or above, who pass the debt and age checks, are fully approved.
+- Any case not covered by the above is rejected as not covered.
+
+Output should include whether approved and a short reason string.

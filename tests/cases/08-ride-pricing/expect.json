@@ -1,0 +1,18 @@
+[
+  {
+    "input": { "base_fare": 5.0, "distance_km": 10, "rain": true, "traffic_level": "high" },
+    "noError": true
+  },
+  {
+    "input": { "base_fare": 5.0, "distance_km": 10, "rain": false, "traffic_level": "high" },
+    "noError": true
+  },
+  {
+    "input": { "base_fare": 5.0, "distance_km": 10, "rain": true, "traffic_level": "medium" },
+    "noError": true
+  },
+  {
+    "input": { "base_fare": 5.0, "distance_km": 10, "rain": false, "traffic_level": "low" },
+    "noError": true
+  }
+]

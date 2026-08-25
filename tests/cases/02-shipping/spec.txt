@@ -1,0 +1,10 @@
+Shipping cost decision for an online store:
+
+Inputs: destination zone as text ("domestic" or "international"), package weight in kg.
+
+Rules:
+- Domestic packages cost 5 euros base. Domestic packages heavier than 10 kg cost 12 euros instead.
+- International packages cost 20 euros base. International packages heavier than 10 kg cost 45 euros instead.
+- Any order total weight above 30 kg is refused regardless of zone: not shippable.
+
+Output: shipping_cost (a number) and status (text). Status must be exactly one of: "shippable", "refused".

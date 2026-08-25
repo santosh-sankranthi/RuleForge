@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DMN Copilot Studio & Test Workbench</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Top Navigation Header -->
+    <header class="app-header">
+      <div class="brand-area">
+        <div class="brand-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+            <polyline points="2 17 12 22 22 17"></polyline>
+            <polyline points="2 12 12 17 22 12"></polyline>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>DMN Copilot Studio</h1>
+          <span class="badge-tag">OMG DMN 1.3 & feelc SMT</span>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="nav-tabs">
+        <button class="nav-tab active" data-tab="tab-copilot" id="tabBtnCopilot">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+          1. NL $\rightarrow$ DMN Compiler
+        </button>
+        <button class="nav-tab" data-tab="tab-batch" id="tabBtnBatch">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+          2. Batch Test Studio
+        </button>
+        <button class="nav-tab" data-tab="tab-playground" id="tabBtnPlayground">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>
+          3. Live Playground
+        </button>
+      </nav>
+
+      <div class="system-status">
+        <div class="status-pill">
+          <span class="pulse-dot"></span>
+          <span id="modelIndicator">stealth/ox-alpha</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Workspace Content -->
+    <main class="workbench-body">
+      
+      <!-- TAB 1: COPILOT & COMPILER STUDIO -->
+      <section class="tab-panel active" id="tab-copilot">
+        <div class="studio-layout">
+          <!-- Left Column: NL Spec & Presets -->
+          <div class="studio-col input-col">
+            <div class="panel-header">
+              <div class="header-title">
+                <h3>Natural Language Specification</h3>
+                <p>Describe your business rules in plain English — or start blank below</p>
+              </div>
+              <div class="selector-toolbar">
+                <select id="myModelsSelect" class="preset-dropdown" title="Your saved models (from out/)">
+                  <option value="" disabled selected>📂 My Models…</option>
+                </select>
+                <select id="presetSelect" class="preset-dropdown" title="Starter templates">
+                  <option value="" disabled selected>✨ Load a Template…</option>
+                </select>
+                <button id="newModelBtn" class="btn btn-sm btn-secondary" title="Clear the editor and start a brand-new model">
+                  ＋ New Model
+                </button>
+              </div>
+            </div>
+
+            <div class="editor-wrapper">
+              <textarea id="nlSpecInput" class="code-textarea" placeholder="Type or paste plain-English business rules here..."></textarea>
+            </div>
+
+            <div class="panel-actions">
+              <div class="model-name-input-box">
+                <label for="modelNameInput">Model ID:</label>
+                <input type="text" id="modelNameInput" value="ride_pricing" placeholder="model_name">
+              </div>
+              <button id="compileBtn" class="btn btn-primary">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                Compile to DMN 1.3
+              </button>
+            </div>
+
+            <!-- Compilation Status Log Box -->
+            <div id="compilationLog" class="status-log-card hidden">
+              <div class="log-header">
+                <span class="log-title">Compilation & SMT Prover Log</span>
+                <span id="compilationBadge" class="badge">Compiling...</span>
+              </div>
+              <div id="logContent" class="log-content"></div>
+            </div>
+          </div>
+
+          <!-- Right Column: Output Tabs (Rules & DMN XML) -->
+          <div class="studio-col output-col">
+            <div class="panel-header">
+              <div class="output-subtabs">
+                <button class="subtab active" data-subtab="view-rules" id="subtabRulesBtn">
+                  📄 Verified .rules DSL
+                </button>
+                <button class="subtab" data-subtab="view-dmn" id="subtabDmnBtn">
+                  ⚡ OMG DMN 1.3 XML
+                </button>
+                <button class="subtab" data-subtab="view-manifest" id="subtabManifestBtn">
+                  📊 DRD Graph
+                </button>
+                <button class="subtab" data-subtab="view-input" id="subtabInputBtn">
+                  🧾 Input Data &amp; Run
+                </button>
+              </div>
+              <div class="output-actions">
+                <button id="copyOutputBtn" class="btn btn-sm btn-secondary" title="Copy Content">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                  Copy
+                </button>
+                <button id="downloadDmnBtn" class="btn btn-sm btn-accent" title="Download DMN 1.3 XML">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                  Download .dmn
+                </button>
+              </div>
+            </div>
+
+            <!-- Subview 1: .rules Code -->
+            <div class="subview-content active" id="view-rules">
+              <pre class="code-view"><code id="rulesOutput">// Compiled .rules DSL will appear here...</code></pre>
+            </div>
+
+            <!-- Subview 2: DMN XML -->
+            <div class="subview-content" id="view-dmn">
+              <pre class="code-view"><code id="dmnOutput">&lt;!-- OMG DMN 1.3 XML will appear here... --&gt;</code></pre>
+            </div>
+
+            <!-- Subview 3: DRD Manifest & Diagram -->
+            <div class="subview-content" id="view-manifest">
+              <div class="manifest-card" id="manifestView">
+                <div class="manifest-meta">
+                  <h4>Decision Requirements Graph</h4>
+                  <p>Decisions and input dependencies detected by the SMT engine:</p>
+                </div>
+                <div id="manifestNodes" class="drd-graph-container"></div>
+              </div>
+            </div>
+
+            <!-- Subview 4: Input Data Template + Runner -->
+            <div class="subview-content" id="view-input">
+              <div class="input-studio-layout">
+                <div class="input-form-pane">
+                  <div class="manifest-meta">
+                    <h4>Model Inputs</h4>
+                    <p>Auto-generated from the model's declared inputs &amp; domains — fill and run.</p>
+                  </div>
+                  <div id="templateFormFields" class="dynamic-inputs-box"></div>
+                  <div class="form-buttons">
+                    <button id="runTemplateBtn" class="btn btn-sm btn-success">▶ Run All Decisions</button>
+                    <button id="sendToBatchBtn" class="btn btn-sm btn-accent">Send to Batch Studio →</button>
+                  </div>
+                  <div id="templateRunResults" class="template-run-results"></div>
+                </div>
+                <div class="json-preview-pane">
+                  <div class="manifest-meta json-preview-header">
+                    <h4>JSON Input Template</h4>
+                    <div class="output-actions">
+                      <button id="copyTemplateBtn" class="btn btn-sm btn-secondary" title="Copy JSON template">Copy JSON</button>
+                      <button id="downloadTemplateBtn" class="btn btn-sm btn-secondary" title="Download scenario JSON (works with Import JSON & test-workflow.mjs)">Download .json</button>
+                    </div>
+                  </div>
+                  <pre class="code-view json-preview"><code id="templateJsonPreview">{ }</code></pre>
+                  <span class="hint-text">💡 This JSON is what the engine (and any DMN 1.3 runtime) ingests for this model. Download it as a ready-made test suite skeleton.</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Quick Action: Jump to Tests -->
+            <div class="output-footer">
+              <span class="hint-text">💡 Compiled? Open <strong>Input Data & Run</strong> for a ready JSON template, or jump to the Test Studio.</span>
+              <button id="quickJumpToTestsBtn" class="btn btn-sm btn-primary">
+                Open in Test Studio →
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: BATCH TEST STUDIO -->
+      <section class="tab-panel" id="tab-batch">
+        <div class="test-studio-layout">
+          <!-- Left Control & Ingestion Sidebar -->
+          <div class="test-sidebar">
+            <div class="sidebar-card">
+              <div class="card-header">
+                <h3>Test Scenario Manager</h3>
+                <span id="scenarioCountBadge" class="badge badge-info">0 Scenarios</span>
+              </div>
+              <p class="card-desc">Define or import test cases to execute across all decision nodes.</p>
+
+              <div class="scenario-actions-bar">
+                <button id="addScenarioBtn" class="btn btn-sm btn-primary">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                  Add Scenario
+                </button>
+                <button id="loadPresetScenariosBtn" class="btn btn-sm btn-secondary">
+                  Load Preset Suite
+                </button>
+                <button id="importJsonBtn" class="btn btn-sm btn-secondary">
+                  Import JSON
+                </button>
+              </div>
+
+              <!-- Hidden file input for JSON import -->
+              <input type="file" id="jsonFileInput" accept=".json" class="hidden">
+
+              <!-- Active Scenario Form Modal/Drawer -->
+              <div id="scenarioFormCard" class="scenario-form-card">
+                <h4 id="formTitle">Add Test Scenario</h4>
+                <div class="form-group">
+                  <label for="scNameInput">Scenario Name</label>
+                  <input type="text" id="scNameInput" placeholder="e.g. Rainy Friday Rush Hour">
+                </div>
+                <div id="dynamicFormInputs" class="dynamic-inputs-box">
+                  <!-- Generated input fields based on active model manifest -->
+                </div>
+                <div class="form-buttons">
+                  <button id="saveScenarioBtn" class="btn btn-sm btn-accent">Save Scenario</button>
+                  <button id="cancelScenarioBtn" class="btn btn-sm btn-secondary">Cancel</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Bulk Run Button -->
+            <div class="bulk-run-card">
+              <button id="runAllBatchBtn" class="btn btn-lg btn-success btn-block">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                Run All Test Scenarios
+              </button>
+              <div class="batch-metrics" id="batchMetrics">
+                <span>Pass Rate: <strong id="metricPassRate">—</strong></span>
+                <span>Avg Latency: <strong id="metricLatency">—</strong></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Results Matrix -->
+          <div class="test-results-panel">
+            <div class="results-header">
+              <div class="header-title">
+                <h3>Batch Evaluation Matrix</h3>
+                <p>Engine evaluation results across all decision requirements</p>
+              </div>
+              <div class="filter-controls">
+                <span class="model-tag" id="activeModelTag">Model: ride_pricing</span>
+              </div>
+            </div>
+
+            <div class="table-container">
+              <table class="results-table" id="resultsTable">
+                <thead>
+                  <tr id="tableHeadRow">
+                    <th>#</th>
+                    <th>Scenario</th>
+                    <th>Inputs</th>
+                    <th>Decisions & Outputs</th>
+                    <th>Latency</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="tableBody">
+                  <tr>
+                    <td colspan="6" class="empty-state">
+                      <div class="empty-box">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+                        <p>No scenarios evaluated yet.</p>
+                        <span>Click <strong>"Load Preset Suite"</strong> or <strong>"Add Scenario"</strong> and hit <strong>"Run All"</strong>.</span>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: LIVE PLAYGROUND -->
+      <section class="tab-panel" id="tab-playground">
+        <div class="playground-layout">
+          <!-- Left Controls Column -->
+          <div class="play-col controls-col">
+            <div class="card-header">
+              <h3>Live Interactive Controls</h3>
+              <span class="live-badge"><span class="pulse-dot"></span> Real-time (< 2ms)</span>
+            </div>
+            <p class="card-desc">Adjust sliders, toggles, and dropdowns to observe instantaneous decision outputs.</p>
+
+            <div id="liveControlsContainer" class="live-controls-box">
+              <!-- Dynamically generated sliders & toggles -->
+            </div>
+          </div>
+
+          <!-- Right Live Output Column -->
+          <div class="play-col outputs-col">
+            <div class="card-header">
+              <h3>Live Decision Outcome</h3>
+              <span class="badge badge-success" id="liveLatencyBadge">1.2ms</span>
+            </div>
+
+            <div id="liveOutputsCards" class="live-cards-grid">
+              <!-- Live decision cards populated here -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

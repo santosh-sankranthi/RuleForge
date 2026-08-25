@@ -1,0 +1,13 @@
+# RuleForge Requirements & Prerequisites
+# ----------------------------------------
+# Node.js: >= 18.0.0 (Native ES modules and node:test runner)
+# Go (optional, for rebuilding feelc engine from source): >= 1.23
+# OpenRouter API Key (or OpenAI-compatible endpoint) for LLM rule drafting
+
+# Runtime Dependencies:
+# RuleForge uses native Node.js standard libraries (node:http, node:fs, node:child_process, node:test)
+# with zero external npm dependencies required for core execution.
+
+# Optional Python tooling (if using Python test wrappers/scripts):
+requests>=2.31.0
+pyyaml>=6.0.1

@@ -1,0 +1,13 @@
+Car insurance acceptance decision:
+
+Inputs: driver age, count of at-fault accidents in last 3 years.
+
+Rules:
+- Refuse any driver younger than 18: application_status "declined", premium_tier "none".
+- Refuse any driver with more than 3 at-fault accidents: application_status "declined", premium_tier "none".
+- Drivers aged 18 to 25 with at most 1 accident are accepted as premium_tier "high" with base premium 900.
+- Drivers over 25 with no accidents are accepted as premium_tier "low" with base premium 400.
+- All other accepted drivers get premium_tier "medium" with base premium 650.
+- Anything not covered above defaults to declined with premium_tier "none".
+
+Output: application_status ("accepted"/"declined"), premium_tier, base_premium (number).

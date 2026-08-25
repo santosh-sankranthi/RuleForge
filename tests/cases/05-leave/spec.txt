@@ -1,0 +1,11 @@
+Leave request approval:
+
+Inputs: requested days (number), doctor note provided (boolean), is during blackout period (boolean).
+
+Rules:
+- Requests during blackout period are rejected with reason "blackout".
+- Requests longer than 30 days are rejected with reason "too long".
+- Requests of 3 or more days without a doctor note are rejected with reason "doctor note required".
+- Everything else is approved with reason "ok".
+
+Output: approved (boolean) and reason (text).

@@ -1,0 +1,5 @@
+[
+ {"input":{"loyalty_score":850},"expect":{"new_tier":"platinum"}},
+ {"input":{"loyalty_score":750},"expect":{"new_tier":"gold"}},
+ {"input":{"loyalty_score":300},"expect":{"new_tier":"standard"}}
+]

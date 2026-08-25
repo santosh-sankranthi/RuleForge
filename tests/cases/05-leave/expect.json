@@ -1,0 +1,6 @@
+[
+ {"input":{"requested_days":10,"doctor_note":false,"blackout_period":false},"expect":{"approved":false,"reason":"doctor note required"}},
+ {"input":{"requested_days":2,"doctor_note":false,"blackout_period":false},"expect":{"approved":true,"reason":"ok"}},
+ {"input":{"requested_days":45,"doctor_note":true,"blackout_period":false},"expect":{"approved":false,"reason":"too long"}},
+ {"input":{"requested_days":5,"doctor_note":true,"blackout_period":true},"expect":{"approved":false,"reason":"blackout"}}
+]

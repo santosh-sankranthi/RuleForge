@@ -1,0 +1,29 @@
+{
+  "name": "ruleforge",
+  "version": "1.0.0",
+  "description": "RuleForge — Natural Language to Provably Sound DMN/FEEL Business Rules Compiler & Visualizer",
+  "main": "server.mjs",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "compile": "node copilot.mjs",
+    "test": "node --test tests/unit.test.mjs",
+    "test:api": "node --test tests/api.test.mjs",
+    "test:all": "node --test tests/unit.test.mjs tests/api.test.mjs"
+  },
+  "keywords": [
+    "dmn",
+    "feel",
+    "feelc",
+    "rules-engine",
+    "copilot",
+    "llm-compiler",
+    "business-rules",
+    "formal-verification"
+  ],
+  "author": "Santosh Sankranthi",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

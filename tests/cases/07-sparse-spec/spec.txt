@@ -1,0 +1,7 @@
+Refund eligibility:
+
+Inputs: days since purchase (number), item used (boolean).
+
+Rules:
+- Within 14 days and unused: refund approved.
+- Between 15 and 30 days: only store credit, not a cash refund, whether or not the item was used.

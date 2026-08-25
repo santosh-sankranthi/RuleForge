@@ -1,0 +1,5 @@
+[
+ {"input":{"days_since_purchase":5,"item_used":false},"noError":true},
+ {"input":{"days_since_purchase":20,"item_used":true},"noError":true},
+ {"input":{"days_since_purchase":90,"item_used":false},"noError":true}
+]

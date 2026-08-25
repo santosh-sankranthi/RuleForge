@@ -1,0 +1,6 @@
+[
+ {"input":{"zone":"domestic","weight_kg":3,"order_total_weight":3},"expect":{"status":"shippable","shipping_cost":5}},
+ {"input":{"zone":"domestic","weight_kg":15,"order_total_weight":15},"expect":{"status":"shippable","shipping_cost":12}},
+ {"input":{"zone":"international","weight_kg":3,"order_total_weight":3},"expect":{"status":"shippable","shipping_cost":20}},
+ {"input":{"zone":"international","weight_kg":35,"order_total_weight":35},"expect":{"status":"refused"}}
+]

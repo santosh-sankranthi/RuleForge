@@ -1,0 +1,10 @@
+Priority customer upgrade rules:
+
+Inputs: loyalty score (number).
+
+Rules:
+- Scores above 700 upgrade the customer to "gold".
+- Scores above 800 upgrade the customer to "platinum" - this must take priority when both apply.
+- Everyone else stays "standard".
+
+Output: new_tier (text).

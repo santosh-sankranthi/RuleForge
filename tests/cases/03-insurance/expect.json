@@ -1,0 +1,7 @@
+[
+ {"input":{"driver_age":17,"accidents":0},"expect":{"application_status":"declined","premium_tier":"none"}},
+ {"input":{"driver_age":30,"accidents":4},"expect":{"application_status":"declined"}},
+ {"input":{"driver_age":22,"accidents":1},"expect":{"application_status":"accepted","premium_tier":"high","base_premium":900}},
+ {"input":{"driver_age":40,"accidents":0},"expect":{"application_status":"accepted","premium_tier":"low","base_premium":400}},
+ {"input":{"driver_age":30,"accidents":2},"expect":{"application_status":"accepted","premium_tier":"medium","base_premium":650}}
+]

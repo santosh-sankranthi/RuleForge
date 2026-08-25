@@ -1,0 +1,19 @@
+Ride-sharing surge pricing rules:
+
+Inputs:
+- base_fare: number in euros (>= 0)
+- distance_km: number (>= 0)
+- rain: boolean (true or false)
+- traffic_level: text ("low", "medium", "high")
+
+Rules:
+- Standard cost is base_fare + (distance_km * 1.5).
+- If traffic_level is "high" and rain is true, apply a 2.0x surge multiplier.
+- If traffic_level is "high" and rain is false, apply a 1.5x surge multiplier.
+- If rain is true but traffic_level is "medium", apply a 1.2x surge multiplier.
+- In all other normal conditions, multiplier is 1.0x.
+
+Output:
+- total_fare (number)
+- surge_applied (boolean)
+- reason (text)

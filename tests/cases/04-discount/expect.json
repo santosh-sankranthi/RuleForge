@@ -1,0 +1,7 @@
+[
+ {"input":{"customer_tier":"gold","purchase_amount":100},"expect":{"discount_percent":15}},
+ {"input":{"customer_tier":"silver","purchase_amount":100},"expect":{"discount_percent":10}},
+ {"input":{"customer_tier":"bronze","purchase_amount":100},"expect":{"discount_percent":0}},
+ {"input":{"customer_tier":"silver","purchase_amount":600},"expect":{"discount_percent":15}},
+ {"input":{"customer_tier":"gold","purchase_amount":900},"expect":{"discount_percent":20}}
+]

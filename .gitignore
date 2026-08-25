@@ -1,0 +1,29 @@
+# Logs & temporary run files
+out/
+q*.txt
+*.log
+*.tmp
+*.swp
+.DS_Store
+
+# Test run result dumps & scratch probes
+tests/*-results.json
+tests/_*
+
+# Environment and secrets (NEVER commit credentials)
+.env
+.env.*
+*.key
+*.pem
+*.token
+*credentials*
+.dsh/
+
+# Dependencies & caches
+node_modules/
+.npm-cache/
+dist/
+
+# External cloned repositories
+feelc/
+dmn-js-mcp/
