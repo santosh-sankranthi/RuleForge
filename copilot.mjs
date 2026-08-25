@@ -14,7 +14,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import {
-  ROOT, MODEL, MAX_TOKENS, loadApiKey, chat, extractRules, verify,
+  ROOT, MODEL, MAX_TOKENS, loadApiKey, loadLlmConfig, chat, extractRules, verify,
   parseModelManifest, sanitizeTestInput, runDecision, exportDmn,
   CreditError, TruncationError, LlmError,
 } from "./copilot-lib.mjs";
@@ -24,9 +24,10 @@ const [, , nlFile, rawName] = process.argv;
 if (!nlFile || !rawName) { console.error("usage: node copilot.mjs <nl-rules.txt> <model-name>"); process.exit(1); }
 const modelName = rawName.toLowerCase().replace(/[^a-z0-9_]/g, "_");
 
+const llmCfg = loadLlmConfig();
 const apiKey = loadApiKey();
 const nlRules = readFileSync(path.resolve(nlFile), "utf8");
-console.log(`▸ NL rules: ${nlFile} (${nlRules.length} chars)\n▸ Drafting feelc model with ${MODEL()}…`);
+console.log(`▸ NL rules: ${nlFile} (${nlRules.length} chars)\n▸ Drafting feelc model via ${llmCfg.provider.toUpperCase()} (${MODEL()})…`);
 
 /* ---------------- generation prompts ---------------- */
 const SYNTAX_GUIDE = `You are writing a model for the "feelc" compiled rules engine (DMN/FEEL paradigm).

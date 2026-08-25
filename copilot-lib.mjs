@@ -11,13 +11,45 @@ import https from "node:https";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { existsSync } from "node:fs";
+
 export const ROOT = path.dirname(fileURLToPath(import.meta.url));
+
+/* ---------------- Environment file loader (.env) ---------------- */
+export function loadEnv(envPath = path.join(ROOT, ".env")) {
+  if (!existsSync(envPath)) return {};
+  try {
+    const content = readFileSync(envPath, "utf8");
+    const parsed = {};
+    for (const rawLine of content.split(/\r?\n/)) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith("#")) continue;
+      const eqIdx = line.indexOf("=");
+      if (eqIdx === -1) continue;
+      const key = line.slice(0, eqIdx).trim();
+      let val = line.slice(eqIdx + 1).trim();
+      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+        val = val.slice(1, -1);
+      }
+      parsed[key] = val;
+      if (process.env[key] === undefined) {
+        process.env[key] = val;
+      }
+    }
+    return parsed;
+  } catch {
+    return {};
+  }
+}
+
+// Auto-load .env at module evaluation time
+loadEnv();
+
 export const FEELC = process.env.FEELC_BIN || path.join(ROOT, "bin", "feelc");
-export const MODEL = () => process.env.QUERY_MODEL || "stealth/ox-alpha";
 
 /**
  * Output-token ceiling per LLM call. Default 50_000 — sized for real-world specs
- * of 100–500 rules (user-directed scale target). Override: QUERY_MAX_TOKENS env.
+ * of 100–500 rules (override via QUERY_MAX_TOKENS env).
  */
 export const MAX_TOKENS = () => Number(process.env.QUERY_MAX_TOKENS || 50000);
 
@@ -27,24 +59,142 @@ export const CHAT_TIMEOUT_MS = () => Number(process.env.CHAT_TIMEOUT_MS || 30 * 
 /** Transient-failure retry attempts per LLM call (so ≥5 total tries). */
 export const CHAT_RETRIES = () => Number(process.env.CHAT_RETRIES ?? 4);
 
-export const CHAT_URL = "https://openrouter.ai/api/v1/chat/completions";
-
-/** Conservative ceiling used if the provider rejects the requested max_tokens. */
-const FALLBACK_MAX_TOKENS = 16000;
-
 export class LlmError extends Error {}
 export class CreditError extends LlmError {}
 export class TruncationError extends LlmError {}
 
-/* ---------------- credentials ---------------- */
-export function loadApiKey(credPath = path.join(process.env.HOME || "", ".dsh/.credentials.yaml")) {
-  if (process.env.OPENROUTER_API_KEY) return process.env.OPENROUTER_API_KEY;
-  try {
-    const key = readFileSync(credPath, "utf8").match(/OPENROUTER_API_KEY:\s*(\S+)/)?.[1];
-    if (key) return key;
-  } catch {}
-  throw new LlmError(`OPENROUTER_API_KEY not found in environment (OPENROUTER_API_KEY) or ${credPath}`);
+/* ---------------- Provider & credentials resolution ---------------- */
+
+/**
+ * Normalizes Azure AI Foundry / Azure OpenAI endpoint URLs.
+ */
+export function buildAzureEndpoint(endpoint, model, apiVersion = "2024-06-01") {
+  let clean = (endpoint || "").trim().replace(/\/+$/, "");
+  if (!clean) return "";
+
+  // If it's already a full completions URL
+  if (clean.includes("/chat/completions")) {
+    if (apiVersion && !clean.includes("api-version=") && clean.includes("openai.azure.com")) {
+      const sep = clean.includes("?") ? "&" : "?";
+      return `${clean}${sep}api-version=${apiVersion}`;
+    }
+    return clean;
+  }
+
+  // Azure OpenAI service: https://<resource>.openai.azure.com
+  if (clean.includes("openai.azure.com")) {
+    const deployment = model || "gpt-4o";
+    const ver = apiVersion ? `?api-version=${apiVersion}` : "";
+    return `${clean}/openai/deployments/${deployment}/chat/completions${ver}`;
+  }
+
+  // Azure AI Foundry / AI Studio: services.ai.azure.com or models.ai.azure.com
+  if (clean.endsWith("/models")) {
+    return `${clean}/chat/completions`;
+  }
+  if (clean.includes("services.ai.azure.com")) {
+    return `${clean}/models/chat/completions`;
+  }
+
+  // Default OpenAI-compatible path
+  return `${clean}/chat/completions`;
 }
+
+/**
+ * Resolves the active LLM provider configuration from .env / process.env.
+ * Prioritizes Azure AI Foundry / Azure OpenAI, then OpenRouter / OpenAI.
+ */
+export function loadLlmConfig(credPath = path.join(process.env.HOME || "", ".dsh/.credentials.yaml")) {
+  // 1. Azure AI Foundry / Azure OpenAI
+  const azureKey = process.env.AZURE_AI_API_KEY || process.env.AZURE_OPENAI_API_KEY || process.env.AZURE_API_KEY;
+  const azureEndpoint = process.env.AZURE_AI_ENDPOINT || process.env.AZURE_OPENAI_ENDPOINT;
+  if (azureKey || azureEndpoint) {
+    const model = process.env.AZURE_AI_MODEL || process.env.AZURE_OPENAI_DEPLOYMENT_NAME || process.env.AZURE_OPENAI_MODEL || process.env.QUERY_MODEL || "gpt-4o";
+    const apiVersion = process.env.AZURE_AI_API_VERSION || process.env.AZURE_OPENAI_API_VERSION || "2024-06-01";
+    const url = buildAzureEndpoint(azureEndpoint, model, apiVersion);
+    return {
+      provider: "azure",
+      apiKey: azureKey || "",
+      model,
+      url,
+      headers: {
+        "Content-Type": "application/json",
+        "api-key": azureKey || "",
+        Authorization: `Bearer ${azureKey || ""}`,
+      },
+    };
+  }
+
+  // 2. OpenRouter
+  const openrouterKey = process.env.OPENROUTER_API_KEY;
+  if (openrouterKey) {
+    const model = process.env.QUERY_MODEL || "stealth/ox-alpha";
+    return {
+      provider: "openrouter",
+      apiKey: openrouterKey,
+      model,
+      url: "https://openrouter.ai/api/v1/chat/completions",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${openrouterKey}`,
+      },
+    };
+  }
+
+  // 3. OpenAI / Generic OpenAI-compatible endpoint
+  const openaiKey = process.env.OPENAI_API_KEY;
+  if (openaiKey) {
+    const baseUrl = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/+$/, "");
+    const model = process.env.QUERY_MODEL || "gpt-4o";
+    return {
+      provider: "openai",
+      apiKey: openaiKey,
+      model,
+      url: baseUrl.endsWith("/chat/completions") ? baseUrl : `${baseUrl}/chat/completions`,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${openaiKey}`,
+      },
+    };
+  }
+
+  // 4. Legacy fallback from credentials file
+  try {
+    const fileKey = readFileSync(credPath, "utf8").match(/OPENROUTER_API_KEY:\s*(\S+)/)?.[1];
+    if (fileKey) {
+      return {
+        provider: "openrouter",
+        apiKey: fileKey,
+        model: process.env.QUERY_MODEL || "stealth/ox-alpha",
+        url: "https://openrouter.ai/api/v1/chat/completions",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${fileKey}`,
+        },
+      };
+    }
+  } catch {}
+
+  // Unconfigured stub
+  return {
+    provider: "unconfigured",
+    apiKey: "",
+    model: process.env.QUERY_MODEL || "gpt-4o",
+    url: "",
+    headers: { "Content-Type": "application/json" },
+  };
+}
+
+export function loadApiKey(credPath) {
+  const cfg = loadLlmConfig(credPath);
+  if (!cfg.apiKey) {
+    throw new LlmError("No API key configured. Set AZURE_AI_API_KEY in your .env file or environment.");
+  }
+  return cfg.apiKey;
+}
+
+export const MODEL = () => loadLlmConfig().model;
+export const CHAT_URL = () => loadLlmConfig().url;
 
 /* ---------------- OpenRouter chat (hardened) ---------------- */
 export const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -85,9 +235,13 @@ const isTransient = (e) =>
 export const isNetworkError = (e) =>
   e instanceof Error && !(e instanceof TruncationError) && !(e instanceof CreditError) && NETWORK_ERR_RE.test(String(e.message || e));
 
-/* Model output-token metadata from OpenRouter (public endpoint), cached 6 h. */
+const FALLBACK_MAX_TOKENS = 16000;
+
+/* Model output-token metadata (cached 6 h). */
 let _modelMaxCache = { at: 0, value: null };
 export async function getModelMaxOutput(model = MODEL()) {
+  const cfg = loadLlmConfig();
+  if (cfg.provider !== "openrouter") return null;
   if (Date.now() - _modelMaxCache.at < 6 * 3600_000) return _modelMaxCache.value;
   try {
     const { status, text } = await postJson("https://openrouter.ai/api/v1/models", {}, "", { timeoutMs: 10_000 });
@@ -110,6 +264,7 @@ export async function resolveMaxTokens(requested = MAX_TOKENS()) {
 
 /**
  * One chat completion with production-grade hardening:
+ *  - Supports Azure AI Foundry, Azure OpenAI, OpenRouter, and OpenAI endpoints
  *  - stdlib transport immune to undici's ~300 s header cap; per-call patience CHAT_TIMEOUT_MS (default 30 min)
  *  - transient retries (network / 408 / 409 / 429 / 5xx) with exponential backoff + jitter, CHAT_RETRIES (default 4 → 5 tries)
  *  - 402 → CreditError immediately; finish_reason "length" → TruncationError (not retried)
@@ -117,10 +272,17 @@ export async function resolveMaxTokens(requested = MAX_TOKENS()) {
  *
  * @returns {Promise<string>} assistant message content
  */
-export async function chat(messages, { temperature = 0.2, apiKey, retries = CHAT_RETRIES(), timeoutMs = CHAT_TIMEOUT_MS(), backoffBaseMs = 2000, transport } = {}) {
-  const send = transport || ((payload) => postJson(CHAT_URL, {
-    Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json",
-  }, payload, { timeoutMs }));
+export async function chat(messages, { temperature = 0.2, apiKey, model, endpoint, headers, retries = CHAT_RETRIES(), timeoutMs = CHAT_TIMEOUT_MS(), backoffBaseMs = 2000, transport } = {}) {
+  const cfg = loadLlmConfig();
+  const targetUrl = endpoint || cfg.url;
+  const targetModel = model || cfg.model;
+  const targetHeaders = headers || (apiKey ? {
+    "Content-Type": "application/json",
+    "api-key": apiKey,
+    Authorization: `Bearer ${apiKey}`,
+  } : cfg.headers);
+
+  const send = transport || ((payload) => postJson(targetUrl, targetHeaders, payload, { timeoutMs }));
 
   let ceiling = await resolveMaxTokens();
   let degraded = false;
@@ -128,10 +290,10 @@ export async function chat(messages, { temperature = 0.2, apiKey, retries = CHAT
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const payload = JSON.stringify({ model: MODEL(), temperature, max_tokens: ceiling, messages });
+      const payload = JSON.stringify({ model: targetModel, temperature, max_tokens: ceiling, messages });
       const { status, text } = await send(payload);
       const body = safeParse(text);
-      if (status === 402) throw new CreditError("OpenRouter credits exhausted. Top up at https://openrouter.ai/settings/credits");
+      if (status === 402) throw new CreditError("API credits exhausted. Please verify billing in your provider portal.");
       const choice = body.choices?.[0];
       const content = choice?.message?.content;
       if (choice?.finish_reason === "length") throw new TruncationError(`output truncated at ${ceiling} tokens — raise QUERY_MAX_TOKENS`);

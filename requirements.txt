@@ -2,7 +2,10 @@
 # ----------------------------------------
 # Node.js: >= 18.0.0 (Native ES modules and node:test runner)
 # Go (optional, for rebuilding feelc engine from source): >= 1.23
-# OpenRouter API Key (or OpenAI-compatible endpoint) for LLM rule drafting
+#
+# Credentials:
+# Azure AI Foundry / Azure OpenAI endpoint & API key (configured in .env)
+# Or OpenRouter / OpenAI API key as fallback
 
 # Runtime Dependencies:
 # RuleForge uses native Node.js standard libraries (node:http, node:fs, node:child_process, node:test)

@@ -13,6 +13,7 @@ tests/_*
 # Environment and secrets (NEVER commit credentials)
 .env
 .env.*
+!.env.example
 *.key
 *.pem
 *.token

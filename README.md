@@ -19,22 +19,34 @@
 
 ### 1. Prerequisites
 - **Node.js**: `v18.0.0` or higher
-- **OpenRouter API Key** (or any OpenAI-compatible endpoint)
+- **Azure AI Foundry / Azure OpenAI** (or OpenRouter / OpenAI) API credentials
 
-### 2. Set Your API Key
+### 2. Configure Credentials (Single Place)
+Copy `.env.example` to `.env` and enter your Azure AI Foundry details:
+
 ```bash
-export OPENROUTER_API_KEY="your-openrouter-api-key"
+cp .env.example .env
 ```
+
+Edit `.env`:
+```env
+AZURE_AI_ENDPOINT=https://your-resource-name.services.ai.azure.com/models
+AZURE_AI_API_KEY=your_azure_ai_api_key_here
+AZURE_AI_MODEL=gpt-4o
+AZURE_AI_API_VERSION=2024-06-01
+```
+
+> **Note:** RuleForge supports both Azure AI Model Inference endpoints (`*.services.ai.azure.com`, `*.models.ai.azure.com`) and Azure OpenAI Service deployments (`*.openai.azure.com`).
 
 ### 3. Launch the Web UI
 ```bash
 npm start
-# Opens RuleForge server at http://127.0.0.1:3000
+# Opens RuleForge Studio at http://localhost:3088
 ```
 
 ### 4. Or Run CLI Compilation
 ```bash
-node copilot.mjs nl-rules/loan-approval.txt
+node copilot.mjs nl-rules/loan-approval.txt loan_approval
 ```
 
 ---

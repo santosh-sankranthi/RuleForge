@@ -15,7 +15,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import {
-  ROOT, FEELC, MODEL, MAX_TOKENS, CHAT_TIMEOUT_MS, loadApiKey, chat, extractRules, verify,
+  ROOT, FEELC, MODEL, MAX_TOKENS, CHAT_TIMEOUT_MS, loadApiKey, loadLlmConfig, chat, extractRules, verify,
   parseDecisions, parseInputs, parseModelManifest, runDecision, exportDmn,
   CreditError, TruncationError, LlmError, isNetworkError,
 } from "./copilot-lib.mjs";
@@ -198,9 +198,12 @@ const server = http.createServer(async (req, res) => {
 
       // Compile-policy introspection: the UI (and tests) can display honest limits.
       if (req.method === "GET" && pathname === "/api/config") {
+        const llmCfg = loadLlmConfig();
         sendJson(res, {
           ok: true,
-          model: MODEL(),
+          provider: llmCfg.provider,
+          model: llmCfg.model,
+          endpoint: llmCfg.url ? llmCfg.url.replace(/\?.*$/, "") : "",
           maxTokens: MAX_TOKENS(),
           chatTimeoutMinutes: Math.round(CHAT_TIMEOUT_MS() / 60000),
           compileMaxRounds: COMPILE_MAX_ROUNDS(),
@@ -515,9 +518,12 @@ server.requestTimeout = COMPILE_BUDGET_MS() + 120_000;
 server.keepAliveTimeout = 75_000;
 
 server.listen(PORT, "0.0.0.0", () => {
+  const llmCfg = loadLlmConfig();
   console.log(`\n✨ DMN Copilot Studio & Test Workbench is LIVE!`);
   console.log(`🔗 Local URL : http://localhost:${PORT}`);
-  console.log(`🤖 LLM Model : ${MODEL()} · max_tokens ${MAX_TOKENS()} · ${CHAT_TIMEOUT_MS() / 60000} min/call`);
+  console.log(`🤖 Provider  : ${llmCfg.provider.toUpperCase()} (${llmCfg.model})`);
+  if (llmCfg.url) console.log(`🌐 Endpoint  : ${llmCfg.url.replace(/\?.*$/, "")}`);
+  console.log(`⚙️ Limits    : max_tokens ${MAX_TOKENS()} · ${CHAT_TIMEOUT_MS() / 60000} min/call`);
   console.log(`🔁 Compiles  : up to ${COMPILE_MAX_ROUNDS()} rounds within a ${COMPILE_BUDGET_MS() / 60000} min budget`);
   console.log(`📜 Prompt    : prompts/feelc-copilot.prompt.md (unified, engine-verified)`);
   console.log(`⚡ Engine    : ${FEELC}\n`);

@@ -10,6 +10,7 @@ import {
   ROOT, chat, extractRules, parseDecisions, parseInputs, parseModelManifest,
   parseInputTypes, buildInputTemplate, buildScenarioTemplate,
   verify, sanitizeTestInput, runDecision, exportDmn, isNetworkError,
+  loadEnv, loadLlmConfig, buildAzureEndpoint, MAX_TOKENS,
   CreditError, TruncationError, LlmError,
 } from "../copilot-lib.mjs";
 
@@ -251,12 +252,78 @@ describe("chat() resilience", () => {
   test("sends the configured token ceiling by default", async () => {
     const t = stubTransport([okBody()]);
     await chat([{ role: "user", content: "hi" }], { apiKey, transport: t });
-    assert.equal(t.calls[0].max_tokens, Number(process.env.QUERY_MAX_TOKENS || 50000));
+    assert.equal(t.calls[0].max_tokens, MAX_TOKENS());
   });
 
   test("timeout error is classified as a network error", () => {
     assert.equal(isNetworkError(new Error("chat timed out after 1800000 ms")), true);
     assert.equal(isNetworkError(new LlmError("LLM error: not a model")), false);
+  });
+});
+
+/* ---------- Azure AI Foundry & Provider Configuration ---------- */
+describe("Azure AI Foundry & Provider Configuration", () => {
+  test("buildAzureEndpoint formats Azure OpenAI deployment URLs with API version", () => {
+    const url = buildAzureEndpoint("https://mycompany.openai.azure.com", "gpt-4o", "2024-06-01");
+    assert.equal(url, "https://mycompany.openai.azure.com/openai/deployments/gpt-4o/chat/completions?api-version=2024-06-01");
+  });
+
+  test("buildAzureEndpoint formats Azure AI Foundry Model Inference endpoints", () => {
+    const url1 = buildAzureEndpoint("https://my-foundry.services.ai.azure.com/models", "gpt-4o");
+    assert.equal(url1, "https://my-foundry.services.ai.azure.com/models/chat/completions");
+
+    const url2 = buildAzureEndpoint("https://my-foundry.services.ai.azure.com", "Meta-Llama-3.1-70B");
+    assert.equal(url2, "https://my-foundry.services.ai.azure.com/models/chat/completions");
+
+    const url3 = buildAzureEndpoint("https://llama3.eastus.models.ai.azure.com", "llama3");
+    assert.equal(url3, "https://llama3.eastus.models.ai.azure.com/chat/completions");
+  });
+
+  test("buildAzureEndpoint preserves full completions URLs", () => {
+    const full = "https://custom-gateway.local/v1/chat/completions";
+    assert.equal(buildAzureEndpoint(full, "custom"), full);
+  });
+
+  test("loadLlmConfig detects Azure AI configuration and creates dual auth headers", () => {
+    const origKey = process.env.AZURE_AI_API_KEY;
+    const origEp = process.env.AZURE_AI_ENDPOINT;
+    const origModel = process.env.AZURE_AI_MODEL;
+    try {
+      process.env.AZURE_AI_API_KEY = "test-azure-key-123";
+      process.env.AZURE_AI_ENDPOINT = "https://my-hub.services.ai.azure.com/models";
+      process.env.AZURE_AI_MODEL = "gpt-4o";
+
+      const cfg = loadLlmConfig();
+      assert.equal(cfg.provider, "azure");
+      assert.equal(cfg.apiKey, "test-azure-key-123");
+      assert.equal(cfg.model, "gpt-4o");
+      assert.equal(cfg.url, "https://my-hub.services.ai.azure.com/models/chat/completions");
+      assert.equal(cfg.headers["api-key"], "test-azure-key-123");
+      assert.equal(cfg.headers["Authorization"], "Bearer test-azure-key-123");
+    } finally {
+      if (origKey !== undefined) process.env.AZURE_AI_API_KEY = origKey; else delete process.env.AZURE_AI_API_KEY;
+      if (origEp !== undefined) process.env.AZURE_AI_ENDPOINT = origEp; else delete process.env.AZURE_AI_ENDPOINT;
+      if (origModel !== undefined) process.env.AZURE_AI_MODEL = origModel; else delete process.env.AZURE_AI_MODEL;
+    }
+  });
+
+  test("loadEnv parses key-value pairs ignoring comments and quotes", () => {
+    const envFile = path.join(TMP, "test.env");
+    writeFileSync(envFile, [
+      "# Comment line",
+      "TEST_VAR_A=hello",
+      'TEST_VAR_B="quoted_value"',
+      "TEST_VAR_C='single_quoted'",
+      "",
+    ].join("\n"));
+
+    const parsed = loadEnv(envFile);
+    assert.equal(parsed.TEST_VAR_A, "hello");
+    assert.equal(parsed.TEST_VAR_B, "quoted_value");
+    assert.equal(parsed.TEST_VAR_C, "single_quoted");
+    delete process.env.TEST_VAR_A;
+    delete process.env.TEST_VAR_B;
+    delete process.env.TEST_VAR_C;
   });
 });
 
