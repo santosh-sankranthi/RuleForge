@@ -3,17 +3,35 @@
  * check-connection.mjs — 2-second diagnostic tool for testing your LLM connection.
  * Usage: node check-connection.mjs (or npm run check)
  */
-import { loadLlmConfig, postJson } from "./copilot-lib.mjs";
+import { loadLlmConfig, postJson, FEELC } from "./copilot-lib.mjs";
+import { execFileSync } from "node:child_process";
 
-console.log("\n🔍 Testing RuleForge LLM Connection...");
-console.log("----------------------------------------");
+console.log("\n🔍 Testing RuleForge System & LLM Connection...");
+console.log("================================================");
 
+// 1. Engine Check
+console.log("\n1️⃣  Checking feelc Rules Engine Binary:");
+try {
+  const version = execFileSync(FEELC, ["version"], { encoding: "utf8" }).trim();
+  console.log(`   ✅ Engine Binary : ${FEELC}`);
+  console.log(`   ✅ Engine Version: ${version}`);
+} catch (e) {
+  console.error(`   ❌ Engine Error  : Cannot execute '${FEELC}'`);
+  console.error(`      Detail: ${e.message}`);
+  console.error("\n👉 Fix for your OS (Linux/Windows/Intel Mac):");
+  console.error("   Run:");
+  console.error("     git clone https://github.com/maxgfr/feelc.git");
+  console.error("     cd feelc && go build -o ../bin/feelc ./cmd/feelc\n");
+}
+
+// 2. LLM Config Check
+console.log("\n2️⃣  Checking LLM Configuration (.env):");
 const cfg = loadLlmConfig();
-console.log(`▸ Provider : ${cfg.provider.toUpperCase()}`);
-console.log(`▸ Model    : ${cfg.model}`);
-console.log(`▸ Endpoint : ${cfg.url || "(none configured)"}`);
-console.log(`▸ API Key  : ${cfg.apiKey ? cfg.apiKey.slice(0, 6) + "..." + cfg.apiKey.slice(-4) : "(missing)"}`);
-console.log("----------------------------------------");
+console.log(`   ▸ Provider : ${cfg.provider.toUpperCase()}`);
+console.log(`   ▸ Model    : ${cfg.model}`);
+console.log(`   ▸ Endpoint : ${cfg.url || "(none configured)"}`);
+console.log(`   ▸ API Key  : ${cfg.apiKey ? cfg.apiKey.slice(0, 6) + "..." + cfg.apiKey.slice(-4) : "(missing)"}`);
+console.log("------------------------------------------------");
 
 if (!cfg.apiKey) {
   console.error("❌ ERROR: No API key found.");

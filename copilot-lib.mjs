@@ -45,7 +45,18 @@ export function loadEnv(envPath = path.join(ROOT, ".env")) {
 // Auto-load .env at module evaluation time
 loadEnv();
 
-export const FEELC = process.env.FEELC_BIN || path.join(ROOT, "bin", "feelc");
+export function resolveFeelcBin() {
+  if (process.env.FEELC_BIN) return process.env.FEELC_BIN;
+  const isWin = process.platform === "win32";
+  const binaryName = isWin ? "feelc.exe" : "feelc";
+  const localBin = path.join(ROOT, "bin", binaryName);
+  if (existsSync(localBin)) return localBin;
+  const repoBin = path.join(ROOT, "feelc", binaryName);
+  if (existsSync(repoBin)) return repoBin;
+  return localBin;
+}
+
+export const FEELC = resolveFeelcBin();
 
 /**
  * Output-token ceiling per LLM call. Default 50_000 — sized for real-world specs

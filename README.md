@@ -15,20 +15,64 @@
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Setup & Quick Start
 
 ### 1. Prerequisites
 - **Node.js**: `v18.0.0` or higher
+- **Go**: `v1.23` or higher (required if compiling `feelc` for Linux/Windows/Intel Mac)
 - **Azure AI Foundry / Azure OpenAI** (or OpenRouter / OpenAI) API credentials
 
-### 2. Configure Credentials (Single Place)
-Copy `.env.example` to `.env` and enter your Azure AI Foundry details:
+---
+
+### 2. Setting Up the `feelc` Engine (Cross-Platform)
+
+RuleForge uses the compiled **`feelc`** binary for formal SMT verification and execution.
+
+- **macOS Apple Silicon (M1/M2/M3/M4):** A pre-built binary is already included at `bin/feelc`. Make sure it is executable:
+  ```bash
+  chmod +x bin/feelc
+  ```
+
+- **Linux / Windows / Intel macOS / Custom Build:**
+  If you are running on Linux, Windows, or Intel Mac, clone and build `feelc` natively:
+  ```bash
+  # 1. Clone the feelc engine repository
+  git clone https://github.com/maxgfr/feelc.git
+
+  # 2. Build the feelc binary directly into RuleForge's bin/ folder
+  cd feelc
+  go build -o ../bin/feelc ./cmd/feelc
+  cd ..
+  ```
+  *(On Windows, build as `go build -o ../bin/feelc.exe ./cmd/feelc`)*
+
+---
+
+### 3. Optional: Setting Up `dmn-js-mcp` (MCP Diagram Server)
+
+If you plan to use the Model Context Protocol (MCP) server for DMN diagram rendering and interactive editing:
+
+```bash
+# 1. Clone the dmn-js-mcp repository
+git clone https://github.com/datakurre/dmn-js-mcp.git
+
+# 2. Install dependencies and build
+cd dmn-js-mcp
+npm install
+npm run build
+cd ..
+```
+
+---
+
+### 4. Configure Credentials (`.env`)
+Copy `.env.example` to `.env` in the root folder:
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env`:
+Edit `.env` with your Azure AI Foundry or OpenAI credentials:
 ```env
 AZURE_AI_ENDPOINT=https://your-resource-name.services.ai.azure.com/models
 AZURE_AI_API_KEY=your_azure_ai_api_key_here
@@ -36,15 +80,27 @@ AZURE_AI_MODEL=gpt-4o
 AZURE_AI_API_VERSION=2024-06-01
 ```
 
-> **Note:** RuleForge supports both Azure AI Model Inference endpoints (`*.services.ai.azure.com`, `*.models.ai.azure.com`) and Azure OpenAI Service deployments (`*.openai.azure.com`).
+---
 
-### 3. Launch the Web UI
+### 5. Verify Your Setup (2-Second Diagnostic)
+
+Run the built-in system and connection tester:
+```bash
+npm run check
+```
+This confirms both your local `feelc` binary and your LLM API credentials are functioning properly.
+
+---
+
+### 6. Launch RuleForge
+
+**Web UI & Workbench:**
 ```bash
 npm start
 # Opens RuleForge Studio at http://localhost:3088
 ```
 
-### 4. Or Run CLI Compilation
+**CLI Compilation:**
 ```bash
 node copilot.mjs nl-rules/loan-approval.txt loan_approval
 ```
