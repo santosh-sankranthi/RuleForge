@@ -439,8 +439,9 @@ const server = http.createServer(async (req, res) => {
         const tmpFile = path.join(TMP_DIR, `graph_${Date.now()}.rules`);
         writeFileSync(tmpFile, rules);
         try {
-          const out = execFileSync(FEELC, ["graph", "--rules", tmpFile, "--format", "mermaid"], { encoding: "utf8" });
-          sendJson(res, { ok: true, mermaid: out });
+          const mermaidOut = execFileSync(FEELC, ["graph", "--rules", tmpFile, "--format", "mermaid"], { encoding: "utf8" });
+          const jsonOut = execFileSync(FEELC, ["graph", "--rules", tmpFile, "--format", "json"], { encoding: "utf8" });
+          sendJson(res, { ok: true, mermaid: mermaidOut, graph: JSON.parse(jsonOut) });
         } catch (e) {
           sendJson(res, { ok: false, error: e.message });
         }

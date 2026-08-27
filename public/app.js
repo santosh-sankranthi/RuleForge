@@ -93,6 +93,9 @@ function setupEventListeners() {
       btn.classList.add("active");
       document.getElementById(btn.dataset.subtab).classList.add("active");
       state.activeSubtab = btn.dataset.subtab;
+      if (btn.dataset.subtab === "view-manifest") {
+        renderManifestGraph(state.manifest, state.currentRules);
+      }
     });
   });
 
@@ -345,7 +348,7 @@ function applyLoadedModel(model, { restoreSpec = false, selectInDropdown = false
   dom.activeModelTag.textContent = `Model: ${model.id}`;
   if (selectInDropdown) dom.myModelsSelect.value = model.id;
 
-  renderManifestGraph(state.manifest);
+  renderManifestGraph(state.manifest, model.rules);
   buildScenarioFormInputs();
   renderTemplateStudio();
   buildLivePlayground();
@@ -425,7 +428,7 @@ async function handleCompile() {
       refreshSavedModelOptions();
       dom.myModelsSelect.value = data.name;
 
-      renderManifestGraph(data.manifest);
+      renderManifestGraph(data.manifest, data.rules);
       buildScenarioFormInputs();
       renderTemplateStudio();
       buildLivePlayground();
@@ -460,28 +463,434 @@ async function handleCompile() {
 }
 
 /* ---------------- DRD Graph Visualizer ---------------- */
-function renderManifestGraph(manifest) {
-  if (!manifest || !manifest.decisions) return;
-  dom.manifestNodes.innerHTML = "";
 
-  const inputsCard = document.createElement("div");
-  inputsCard.className = "drd-node";
-  inputsCard.innerHTML = `
-    <div class="drd-node-title">📥 Inputs (${manifest.inputs.length})</div>
-    <div class="drd-node-desc">${manifest.inputs.map(i => `<span class="input-pill">${i}</span>`).join(" ")}</div>
-  `;
-  dom.manifestNodes.appendChild(inputsCard);
+function svgEl(tag, attrs = {}) {
+  const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+  return el;
+}
 
-  manifest.decisions.forEach(d => {
-    const node = document.createElement("div");
-    node.className = "drd-node";
-    const isFinal = d === manifest.final;
-    node.innerHTML = `
-      <div class="drd-node-title">${isFinal ? "🎯 Final Decision: " : "⚙️ Decision: "}${d}</div>
-      <div class="drd-node-desc">Status: Formally verified node</div>
-    `;
-    dom.manifestNodes.appendChild(node);
+function escapeHtml(str) {
+  if (!str) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+async function renderManifestGraph(manifest, rulesText) {
+  if (!manifest) return;
+  dom.manifestNodes.innerHTML = `<div class="drd-graph-loading"><div class="spinner-small"></div> Rendering Decision Requirements Graph…</div>`;
+
+  const rules = rulesText || state.currentRules;
+  if (!rules || !rules.trim()) {
+    renderFallbackManifestGraph(dom.manifestNodes, manifest);
+    return;
+  }
+
+  try {
+    const res = await fetch("/api/graph", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rules, format: "json" }),
+    });
+    const data = await res.json();
+    if (data.ok && data.graph && data.graph.nodes && data.graph.nodes.length > 0) {
+      renderSvgDRD(dom.manifestNodes, data.graph, manifest);
+      return;
+    }
+  } catch (err) {
+    console.warn("Could not fetch graph via /api/graph, falling back:", err);
+  }
+
+  renderFallbackManifestGraph(dom.manifestNodes, manifest);
+}
+
+function renderFallbackManifestGraph(container, manifest) {
+  const nodes = [];
+  const edges = [];
+  const inputs = manifest.inputs || [];
+  const decisions = manifest.decisions || [];
+
+  inputs.forEach(inName => {
+    nodes.push({ id: `n_${inName}`, name: inName, kind: "input", type: "input" });
   });
+
+  decisions.forEach(decName => {
+    const isFinal = decName === manifest.final;
+    nodes.push({ id: `n_${decName}`, name: decName, kind: "decision", hitPolicy: isFinal ? "final" : "decision" });
+  });
+
+  // Infer dependencies from rules source if available
+  const rules = state.currentRules || "";
+  decisions.forEach(decName => {
+    const needsMatch = new RegExp(`decision\\s+${decName}[^{]*\\{[^}]*needs:\\s*([^\\n]+)`, "m").exec(rules);
+    if (needsMatch) {
+      const neededVars = needsMatch[1].split(",").map(s => s.trim()).filter(Boolean);
+      neededVars.forEach(v => {
+        edges.push({ from: `n_${v}`, into: `n_${decName}` });
+      });
+    } else {
+      inputs.forEach(inName => {
+        if (new RegExp(`\\b${inName}\\b`).test(rules)) {
+          edges.push({ from: `n_${inName}`, into: `n_${decName}` });
+        }
+      });
+      decisions.forEach(otherDec => {
+        if (otherDec !== decName && new RegExp(`\\b${otherDec}\\b`).test(rules)) {
+          edges.push({ from: `n_${otherDec}`, into: `n_${decName}` });
+        }
+      });
+    }
+  });
+
+  renderSvgDRD(container, { nodes, edges }, manifest);
+}
+
+function renderSvgDRD(container, graph, manifest) {
+  const nodes = graph.nodes || [];
+  const edges = graph.edges || [];
+  container.innerHTML = "";
+
+  if (!nodes.length) {
+    container.innerHTML = `<div class="drd-graph-loading">No graph nodes available.</div>`;
+    return;
+  }
+
+  // Layered topological ranking (Rank 0 = Inputs, Rank 1+ = Dependent Decisions)
+  const rank = {};
+  nodes.forEach(n => {
+    rank[n.id] = n.kind === "input" ? 0 : 1;
+  });
+
+  for (let pass = 0; pass <= nodes.length + 2; pass++) {
+    let changed = false;
+    edges.forEach(e => {
+      const fromRank = rank[e.from] ?? 0;
+      const targetRank = fromRank + 1;
+      if (targetRank > (rank[e.into] ?? 0)) {
+        rank[e.into] = targetRank;
+        changed = true;
+      }
+    });
+    if (!changed) break;
+  }
+
+  const cols = {};
+  nodes.forEach(n => {
+    const r = rank[n.id] || 0;
+    (cols[r] = cols[r] || []).push(n);
+  });
+
+  const colW = 240, rowH = 76, nodeW = 180, nodeH = 48, padX = 40, padY = 40;
+  const pos = {};
+  let maxRows = 0;
+  const rankKeys = Object.keys(cols).map(Number).sort((a, b) => a - b);
+
+  rankKeys.forEach(r => {
+    cols[r].sort((a, b) => a.name.localeCompare(b.name));
+    cols[r].forEach((n, i) => {
+      pos[n.id] = { x: padX + r * colW, y: padY + i * rowH };
+    });
+    maxRows = Math.max(maxRows, cols[r].length);
+  });
+
+  const W = padX * 2 + Math.max(1, rankKeys.length - 1) * colW + nodeW;
+  const H = padY * 2 + Math.max(1, maxRows) * rowH;
+
+  const wrap = document.createElement("div");
+  wrap.className = "graph-wrap";
+
+  // Top-Right Graph Controls (Zoom In, Zoom Out, Fit)
+  const controls = document.createElement("div");
+  controls.className = "graph-controls";
+
+  const mkBtn = (label, title, fn) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = label;
+    b.title = title;
+    b.setAttribute("aria-label", title);
+    b.onclick = fn;
+    controls.appendChild(b);
+  };
+
+  const svg = svgEl("svg", {
+    class: "drg",
+    width: "100%",
+    viewBox: `0 0 ${W} ${H}`,
+    role: "group",
+    "aria-label": "Decision Requirements Diagram"
+  });
+
+  const defs = svgEl("defs", {});
+  const mkMarker = (id, color) => {
+    const m = svgEl("marker", {
+      id,
+      viewBox: "0 0 10 10",
+      refX: "8",
+      refY: "5",
+      markerWidth: "8",
+      markerHeight: "8",
+      orient: "auto"
+    });
+    m.appendChild(svgEl("path", { d: "M 0 1.5 L 8 5 L 0 8.5 z", fill: color }));
+    return m;
+  };
+  defs.appendChild(mkMarker("drd-arrow", "#38bdf8"));
+  defs.appendChild(mkMarker("drd-arrow-active", "#f43f5e"));
+  svg.appendChild(defs);
+
+  // Render Edges (smooth cubic-bezier curves with high contrast cyan stroke)
+  edges.forEach(e => {
+    const a = pos[e.from], b = pos[e.into];
+    if (!a || !b) return;
+    const x1 = a.x + nodeW, y1 = a.y + nodeH / 2;
+    const x2 = b.x - 3, y2 = b.y + nodeH / 2;
+    const mx = (x1 + x2) / 2;
+    const path = svgEl("path", {
+      d: `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`,
+      fill: "none",
+      stroke: "#38bdf8",
+      "stroke-width": "2.2",
+      "stroke-opacity": "0.85",
+      "marker-end": "url(#drd-arrow)",
+      class: "drd-edge",
+      "data-from": e.from,
+      "data-into": e.into
+    });
+    svg.appendChild(path);
+  });
+
+  // Track connections per node
+  const inDegree = {};
+  const outDegree = {};
+  nodes.forEach(n => {
+    inDegree[n.id] = 0;
+    outDegree[n.id] = 0;
+  });
+  edges.forEach(e => {
+    outDegree[e.from] = (outDegree[e.from] || 0) + 1;
+    inDegree[e.into] = (inDegree[e.into] || 0) + 1;
+  });
+
+  // Node Inspector Popover
+  const inspect = document.createElement("div");
+  inspect.className = "graph-inspect";
+  inspect.hidden = true;
+
+  const selectNode = n => {
+    const isFinal = manifest && (n.name === manifest.final || n.local === manifest.final);
+    const inc = inDegree[n.id] || 0;
+    const out = outDegree[n.id] || 0;
+    const rows = [
+      `<b>${escapeHtml(n.local || n.name)}</b>`,
+      `<span class="gi-kind">${isFinal ? "🎯 Final Decision" : (n.kind === "input" ? "📥 Input Data" : "⚙️ Decision Node")}</span>`
+    ];
+    if (n.type) rows.push(`Type: <code>${escapeHtml(n.type)}</code>`);
+    if (n.hitPolicy) rows.push(`Hit Policy: <code>${escapeHtml(n.hitPolicy)}</code>`);
+    if (n.decisionKind) rows.push(`Logic: <code>${escapeHtml(n.decisionKind)}</code>`);
+    if (n.line) rows.push(`Source Line: <code>${n.line}</code>`);
+    rows.push(`Flow: <code>${inc} incoming → ${out} outgoing</code>`);
+    if (n.kind === "input" && out === 0) {
+      rows.push(`<div class="gi-find" style="color: #fbbf24;">⚠️ Unused Input: Declared at the top of .rules, but not referenced in any decision table's "needs:" list or formula.</div>`);
+    } else if (n.kind !== "input" && inc === 0 && out === 0) {
+      rows.push(`<div class="gi-find" style="color: #fbbf24;">⚠️ Floating Decision: Has no inputs feeding in and no decisions consuming it.</div>`);
+    } else if (n.findings && n.findings.length) {
+      rows.push(`<div class="gi-find">${n.findings.map(f => `• ${escapeHtml(f)}`).join("<br/>")}</div>`);
+    } else {
+      rows.push(`<div style="color:#22c55e; margin-top:4px;">✓ Formally verified clean</div>`);
+    }
+    inspect.innerHTML = `<button class="gi-close" type="button" title="Close">×</button>` + rows.join("<br/>");
+    inspect.querySelector(".gi-close").onclick = () => { inspect.hidden = true; };
+    inspect.hidden = false;
+  };
+
+  // Render Nodes with Standard DMN Shapes
+  nodes.forEach(n => {
+    const p = pos[n.id];
+    if (!p) return;
+    const isInput = n.kind === "input";
+    const isFinal = manifest && (n.name === manifest.final || n.local === manifest.final);
+    const inc = inDegree[n.id] || 0;
+    const out = outDegree[n.id] || 0;
+    const isUnused = (isInput && out === 0) || (!isInput && inc === 0 && out === 0);
+
+    const nodeG = svgEl("g", {
+      class: "gnode",
+      transform: `translate(${p.x},${p.y})`,
+      "data-name": n.name,
+      "data-kind": n.kind,
+      tabindex: "0",
+      role: "button",
+      "aria-label": `${n.kind} ${n.name}`
+    });
+
+    let fill = isInput ? "#1e293b" : (isFinal ? "#064e3b" : "#1e1e38");
+    let stroke = isInput ? "#0284c7" : (isFinal ? "#10b981" : "#6366f1");
+    if (isUnused) {
+      fill = "#292116";
+      stroke = "#f59e0b";
+    }
+    const radius = isInput ? 24 : 8;
+
+    const rect = svgEl("rect", {
+      x: 0,
+      y: 0,
+      width: nodeW,
+      height: nodeH,
+      rx: radius,
+      fill,
+      stroke,
+      "stroke-width": isUnused ? "1.8" : "1.5",
+      class: "gn-rect"
+    });
+    nodeG.appendChild(rect);
+
+    // Title label
+    const name = n.local || n.name;
+    const displayName = name.length > 20 ? name.slice(0, 18) + "…" : name;
+    const titleText = svgEl("text", {
+      x: nodeW / 2,
+      y: nodeH / 2 - 1,
+      "text-anchor": "middle",
+      fill: "#f8fafc",
+      "font-size": "11.5",
+      "font-weight": "600",
+      "font-family": "var(--font-mono, monospace)"
+    });
+    titleText.textContent = displayName;
+    nodeG.appendChild(titleText);
+
+    // Subtitle badge
+    let subLabel;
+    if (isUnused) {
+      subLabel = isInput ? "⚠️ unused input" : "⚠️ floating";
+    } else if (isInput) {
+      subLabel = n.type ? `input: ${n.type}` : "input";
+    } else if (isFinal) {
+      subLabel = "★ final decision";
+    } else {
+      subLabel = n.hitPolicy || n.decisionKind || "decision";
+    }
+
+    let subColor = isUnused ? "#fbbf24" : (isInput ? "#38bdf8" : (isFinal ? "#34d399" : "#a5b4fc"));
+    const subText = svgEl("text", {
+      x: nodeW / 2,
+      y: nodeH - 8,
+      "text-anchor": "middle",
+      fill: subColor,
+      "font-size": "9",
+      "font-weight": "500"
+    });
+    subText.textContent = subLabel;
+    nodeG.appendChild(subText);
+
+    nodeG.addEventListener("click", ev => {
+      ev.stopPropagation();
+      selectNode(n);
+    });
+
+    nodeG.addEventListener("mouseenter", () => {
+      svg.querySelectorAll(".drd-edge").forEach(edgeEl => {
+        if (edgeEl.getAttribute("data-from") === n.id || edgeEl.getAttribute("data-into") === n.id) {
+          edgeEl.classList.add("highlighted");
+          edgeEl.setAttribute("marker-end", "url(#drd-arrow-active)");
+        }
+      });
+    });
+
+    nodeG.addEventListener("mouseleave", () => {
+      svg.querySelectorAll(".drd-edge").forEach(edgeEl => {
+        edgeEl.classList.remove("highlighted");
+        edgeEl.setAttribute("marker-end", "url(#drd-arrow)");
+      });
+    });
+
+    nodeG.addEventListener("keydown", ev => {
+      if (ev.key === "Enter" || ev.key === " ") {
+        ev.preventDefault();
+        selectNode(n);
+      }
+    });
+
+    svg.appendChild(nodeG);
+  });
+
+  svg.addEventListener("click", () => {
+    inspect.hidden = true;
+  });
+
+  // Pan & Zoom Implementation
+  let vb = { x: 0, y: 0, w: W, h: H };
+  const applyViewBox = () => svg.setAttribute("viewBox", `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+
+  const zoomAt = (factor, cx, cy) => {
+    const nw = Math.min(W * 4, Math.max(W * 0.25, vb.w * factor));
+    const ratio = nw / vb.w;
+    vb = {
+      x: cx - (cx - vb.x) * ratio,
+      y: cy - (cy - vb.y) * ratio,
+      w: nw,
+      h: vb.h * ratio
+    };
+    applyViewBox();
+  };
+
+  mkBtn("+", "Zoom in", () => zoomAt(0.8, vb.x + vb.w / 2, vb.y + vb.h / 2));
+  mkBtn("−", "Zoom out", () => zoomAt(1.25, vb.x + vb.w / 2, vb.y + vb.h / 2));
+  mkBtn("⤢", "Fit graph to screen", () => {
+    vb = { x: 0, y: 0, w: W, h: H };
+    applyViewBox();
+  });
+
+  svg.addEventListener("wheel", ev => {
+    ev.preventDefault();
+    const rect = svg.getBoundingClientRect();
+    const cursorX = vb.x + ((ev.clientX - rect.left) / rect.width) * vb.w;
+    const cursorY = vb.y + ((ev.clientY - rect.top) / rect.height) * vb.h;
+    zoomAt(ev.deltaY < 0 ? 0.88 : 1.15, cursorX, cursorY);
+  }, { passive: false });
+
+  let drag = null;
+  svg.addEventListener("mousedown", ev => {
+    drag = { x: ev.clientX, y: ev.clientY };
+    svg.classList.add("grabbing");
+  });
+
+  svg.addEventListener("mousemove", ev => {
+    if (!drag) return;
+    const rect = svg.getBoundingClientRect();
+    vb.x -= ((ev.clientX - drag.x) / rect.width) * vb.w;
+    vb.y -= ((ev.clientY - drag.y) / rect.height) * vb.h;
+    drag = { x: ev.clientX, y: ev.clientY };
+    applyViewBox();
+  });
+
+  const endDrag = () => {
+    drag = null;
+    svg.classList.remove("grabbing");
+  };
+  svg.addEventListener("mouseup", endDrag);
+  svg.addEventListener("mouseleave", endDrag);
+
+  // Bottom Legend
+  const legend = document.createElement("div");
+  legend.className = "graph-legend";
+  legend.innerHTML = `
+    <span><i class="lg-pill" style="border-radius:12px; background:#1e293b; border:1px solid #0284c7;"></i> Input Data (${(manifest.inputs || []).length})</span>
+    <span><i class="lg-pill" style="background:#1e1e38; border:1px solid #6366f1;"></i> Decision Node</span>
+    <span><i class="lg-pill" style="background:#064e3b; border:1px solid #10b981;"></i> Final Decision</span>
+    <span><i class="lg-arrow"></i> Information Requirement (Dependency)</span>
+  `;
+
+  wrap.appendChild(controls);
+  wrap.appendChild(svg);
+  wrap.appendChild(inspect);
+  container.appendChild(wrap);
+  container.appendChild(legend);
 }
 
 /* ---------------- Typed inputs & shared controls ---------------- */
